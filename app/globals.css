@@ -260,6 +260,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .priority-badge { display: inline-block; padding: 6px 8px; border-radius: 99px; font-size: 9px; font-weight: 800; text-align: center; }
 .priority-badge.urgent { color: #913d38; background: #f6deda; }
 .priority-badge.standard { color: #9c4d25; background: var(--orange-soft); }
+.priority-badge.review { color: #745b10; background: #f4e9bd; }
 .priority-copy strong, .priority-copy span { display: block; }
 .priority-copy strong { font-size: 14px; }
 .priority-copy span { margin-top: 4px; color: var(--green); font-size: 10px; font-weight: 750; }
@@ -268,6 +269,20 @@ tbody tr:last-child td { border-bottom: 0; }
 .correct-rate span, .correct-rate strong { display: block; }
 .correct-rate span { color: var(--muted); font-size: 9px; }
 .correct-rate strong { margin-top: 5px; font-size: 17px; }
+.detail-data-warning { margin-top: 16px; padding: 17px 19px; border: 1px solid #ebc7af; border-radius: 16px; background: #fff4ec; }
+.detail-data-warning strong { color: #91451f; font-size: 12px; }
+.detail-data-warning p { margin: 6px 0 0; color: #7c5b48; font-size: 10px; line-height: 1.65; }
+.rate-summary-grid, .observation-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.rate-summary-card, .observation-card { min-height: 160px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.rate-summary-card > span, .observation-card > span { color: var(--muted); font-size: 9px; font-weight: 750; }
+.rate-summary-card > strong, .observation-card > strong { display: block; margin-top: 20px; font-size: 23px; }
+.rate-summary-card > p, .observation-card > p { margin: 9px 0 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.rate-summary-card.positive, .observation-card.positive { border-color: #b9d7c5; background: #eef7f1; }
+.rate-summary-card.attention, .observation-card.attention { border-color: #ebc7af; background: #fff4ec; }
+.analysis-notice { padding: 20px 22px; border: 1px solid #cfd8d1; border-radius: 18px; background: var(--surface); }
+.analysis-notice strong { font-size: 12px; }
+.analysis-notice p { margin: 7px 0 0; color: var(--muted); font-size: 10px; line-height: 1.75; }
+.analysis-notice + .observation-grid { margin-top: 14px; }
 .two-column-detail { display: grid; grid-template-columns: .8fr 1.2fr; gap: 16px; }
 .strength-card { padding: 28px; border-radius: var(--radius); background: var(--lime); }
 .strength-card h2 { margin-top: 22px; font-size: 27px; }
@@ -304,6 +319,7 @@ footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 7
   .comparison-row .difference { grid-column: 2; }
   .detail-stat-grid, .detail-section-grid { grid-template-columns: 1fr 1fr; }
   .two-column-detail { grid-template-columns: 1fr; }
+  .rate-summary-grid, .observation-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {

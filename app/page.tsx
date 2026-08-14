@@ -171,13 +171,9 @@ function ExamBreakdownCard({ record }: { record: ExamRecord }) {
         <span>最重要弱点</span>
         <strong>{record.primaryWeakness}</strong>
       </div>
-      {record.id === "2025-main-1a" ? (
-        <Link href="/exams/2025-main-1a" className="detail-link">
-          詳細分析を見る <span>→</span>
-        </Link>
-      ) : (
-        <span className="detail-coming">詳細分析は準備中</span>
-      )}
+      <Link href={`/exams/${record.id}`} className="detail-link">
+        詳細分析を見る <span>→</span>
+      </Link>
     </article>
   );
 }
@@ -315,9 +311,7 @@ export default function Home() {
                   <tr key={record.id}>
                     <td><span className="order-badge">{index + 1}</span></td>
                     <td>
-                      {record.id === "2025-main-1a" ? (
-                        <Link href="/exams/2025-main-1a" className="table-detail-link">{record.year} {record.type}</Link>
-                      ) : `${record.year} ${record.type}`}
+                      <Link href={`/exams/${record.id}`} className="table-detail-link">{record.year} {record.type}</Link>
                     </td>
                     <td>{record.subject}</td>
                     <td>{formatPracticeDate(record.practicedAt)}</td>
@@ -332,7 +326,7 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.3</span>
+          <span>KYO-SU v0.4</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>
