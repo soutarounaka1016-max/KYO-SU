@@ -141,7 +141,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </div>
       </section>
 
-      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.7</span></footer>
+      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.8</span></footer>
     </main>
   );
 }
