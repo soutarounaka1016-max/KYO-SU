@@ -75,9 +75,7 @@ export function normalizePage(page) {
   const id = recordId(year, type, subject);
   const rawScore = Number(required(valueOf(p["得点"]), "得点", name));
 
-  // The marked sheet confirms 70/100, while the section entries currently sum to 75.
-  // Preserve the official score until the five-point section discrepancy is resolved.
-  const score = id === "2025-main-2bc" && rawScore === 75 ? 70 : rawScore;
+  const score = rawScore;
   const sections = [];
   for (let section = 1; section <= 7; section += 1) {
     const sectionScore = valueOf(p[`第${section}問得点`]);
