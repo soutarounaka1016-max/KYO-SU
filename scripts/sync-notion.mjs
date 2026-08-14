@@ -11,6 +11,10 @@ function requireEnv(name) {
   return value;
 }
 
+function optionalEnv(name) {
+  return process.env[name]?.trim() || undefined;
+}
+
 export function databaseIdFromUrl(value) {
   const compact = value.replaceAll("-", "");
   const match = compact.match(/([0-9a-f]{32})(?:[^0-9a-f]|$)/i);
@@ -147,12 +151,67 @@ export function normalizePage(page) {
   };
 }
 
-async function loadPages() {
-  const databaseId = databaseIdFromUrl(requireEnv("NOTION_DATABASE_URL"));
-  const database = await notionRequest(`/databases/${databaseId}`);
-  const dataSourceId = database.data_sources?.[0]?.id;
-  if (!dataSourceId) throw new Error("No data source was found in the configured Notion database.");
+export function normalizeQuestionPage(page) {
+  const p = page.properties;
+  const name = required(valueOf(p["設問名"]), "設問名", page.id);
+  const year = Number(required(valueOf(p["年度"]), "年度", name));
+  const type = required(valueOf(p["試験区分"]), "試験区分", name);
+  const subject = required(valueOf(p["科目"]), "科目", name);
+  const attemptOrder = Number(required(valueOf(p["科目内演習順"]), "科目内演習順", name));
+  const section = Number(required(valueOf(p["大問"]), "大問", name));
+  const code = required(valueOf(p["設問コード"]), "設問コード", name);
+  const points = Number(required(valueOf(p["配点"]), "配点", name));
+  const result = required(valueOf(p["自分の結果"]), "自分の結果", name);
+  const nationalCorrectRate = Number(required(valueOf(p["全国正答率"]), "全国正答率", name));
+  const field = required(valueOf(p["分野"]), "分野", name);
 
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new Error(`${name}: 年度 must be an integer between 2000 and 2100.`);
+  }
+  if (!["本試", "追試"].includes(type)) {
+    throw new Error(`${name}: 試験区分 must be 本試 or 追試.`);
+  }
+  if (!["数学ⅠA", "数学ⅡBC"].includes(subject)) {
+    throw new Error(`${name}: 科目 must be 数学ⅠA or 数学ⅡBC.`);
+  }
+  if (!Number.isInteger(attemptOrder) || attemptOrder < 1) {
+    throw new Error(`${name}: 科目内演習順 must be a positive integer.`);
+  }
+  if (!Number.isInteger(section) || section < 1 || section > 7) {
+    throw new Error(`${name}: 大問 must be an integer between 1 and 7.`);
+  }
+  if (!Number.isFinite(points) || points <= 0) {
+    throw new Error(`${name}: 配点 must be a positive number.`);
+  }
+  if (!["正解", "不正解"].includes(result)) {
+    throw new Error(`${name}: 自分の結果 must be 正解 or 不正解.`);
+  }
+  if (!Number.isFinite(nationalCorrectRate) || nationalCorrectRate < 0 || nationalCorrectRate > 100) {
+    throw new Error(`${name}: 全国正答率 must be between 0 and 100.`);
+  }
+
+  return {
+    id: page.id,
+    examId: recordId(year, type, subject),
+    name,
+    year,
+    type,
+    subject,
+    attemptOrder,
+    section,
+    code,
+    points,
+    result,
+    nationalCorrectRate,
+    field,
+    topic: valueOf(p["テーマ"]) ?? "",
+    content: valueOf(p["問題内容"]) ?? "",
+    priority: valueOf(p["復習優先度"]) ?? "通常",
+    aiAnalysis: valueOf(p["AI分析"]) ?? "",
+  };
+}
+
+async function queryAllPages(dataSourceId) {
   const pages = [];
   let startCursor;
   do {
@@ -166,9 +225,41 @@ async function loadPages() {
   return pages;
 }
 
+async function questionDataSourceId(examDataSourceId) {
+  const examDataSource = await notionRequest(`/data_sources/${examDataSourceId}`);
+  const relation = examDataSource.properties?.["設問結果"]?.relation;
+  const relatedId = relation?.data_source_id ?? relation?.database_id;
+  if (relatedId) return relatedId;
+
+  const configuredUrl = optionalEnv("NOTION_QUESTION_DATABASE_URL");
+  if (configuredUrl) {
+    const database = await notionRequest(`/databases/${databaseIdFromUrl(configuredUrl)}`);
+    const configuredId = database.data_sources?.[0]?.id;
+    if (configuredId) return configuredId;
+  }
+
+  throw new Error(
+    "設問結果Relationから設問分析データソースを検出できません。KYO-SU連携へ設問分析のアクセス権を付与するか、NOTION_QUESTION_DATABASE_URLを設定してください。",
+  );
+}
+
+async function loadPages() {
+  const databaseId = databaseIdFromUrl(requireEnv("NOTION_DATABASE_URL"));
+  const database = await notionRequest(`/databases/${databaseId}`);
+  const dataSourceId = database.data_sources?.[0]?.id;
+  if (!dataSourceId) throw new Error("No data source was found in the configured Notion database.");
+
+  const relatedDataSourceId = await questionDataSourceId(dataSourceId);
+  const [examPages, questionPages] = await Promise.all([
+    queryAllPages(dataSourceId),
+    queryAllPages(relatedDataSourceId),
+  ]);
+  return { examPages, questionPages };
+}
+
 async function main() {
-  const pages = await loadPages();
-  const records = pages.map(normalizePage).sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
+  const { examPages, questionPages } = await loadPages();
+  const records = examPages.map(normalizePage).sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
   if (records.length === 0) throw new Error("No exam records were found. Deployment stopped.");
   if (new Set(records.map((record) => record.id)).size !== records.length) {
     throw new Error("Duplicate exam IDs were generated. Check 年度・試験区分・科目. Deployment stopped.");
@@ -184,10 +275,27 @@ async function main() {
     }
   }
 
-  const source = `// Generated from Notion by scripts/sync-notion.mjs. Do not edit directly.\nexport const examRecordsData = ${JSON.stringify(records, null, 2)} as const;\n`;
+  const questions = questionPages
+    .map(normalizeQuestionPage)
+    .sort((a, b) => a.examId.localeCompare(b.examId) || a.section - b.section || a.code.localeCompare(b.code, "ja"));
+  const recordsById = new Map(records.map((record) => [record.id, record]));
+  for (const question of questions) {
+    const record = recordsById.get(question.examId);
+    if (!record) {
+      throw new Error(`${question.name}: 対応する演習記録 ${question.examId} が見つかりません。`);
+    }
+    if (record.attemptOrder !== question.attemptOrder) {
+      throw new Error(`${question.name}: 科目内演習順が演習記録と一致しません。`);
+    }
+  }
+  if (new Set(questions.map((question) => question.id)).size !== questions.length) {
+    throw new Error("Duplicate question IDs were found. Deployment stopped.");
+  }
+
+  const source = `// Generated from Notion by scripts/sync-notion.mjs. Do not edit directly.\nexport const examRecordsData = ${JSON.stringify(records, null, 2)} as const;\n\nexport const questionResultsData = ${JSON.stringify(questions, null, 2)} as const;\n`;
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, source, "utf8");
-  console.log(`Synced and validated ${records.length} exam records from Notion.`);
+  console.log(`Synced and validated ${records.length} exam records and ${questions.length} question results from Notion.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
