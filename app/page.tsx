@@ -113,15 +113,40 @@ function ComparisonRow({ record }: { record: ExamRecord }) {
   );
 }
 
-function SectionBars({ record }: { record: ExamRecord }) {
+function ExamBreakdownCard({ record }: { record: ExamRecord }) {
+  const sectionTotal = record.sections.reduce((sum, section) => sum + section.score, 0);
+  const sectionMaxTotal = record.sections.reduce((sum, section) => sum + section.maxScore, 0);
+  const difference = record.nationalAverage === undefined
+    ? undefined
+    : record.score - record.nationalAverage;
+
   return (
     <article className="card section-card">
       <div className="section-card-head">
         <div>
-          <span className="pill">最新</span>
+          <span className="pill">{record.year} {record.type}</span>
           <h3>{record.subject}</h3>
         </div>
-        <strong className="section-total">{record.score}<small>/100</small></strong>
+        <div className="section-total-wrap">
+          <span>合計得点</span>
+          <strong className="section-total">{record.score}<small>/{record.maxScore}</small></strong>
+        </div>
+      </div>
+      <div className="exam-metrics">
+        <div>
+          <span>全国平均点</span>
+          <strong>{record.nationalAverage === undefined ? "未確認" : `${record.nationalAverage.toFixed(2)}点`}</strong>
+        </div>
+        <div>
+          <span>全国平均との差</span>
+          <strong className={difference === undefined ? "muted-value" : difference >= 0 ? "positive" : "negative"}>
+            {difference === undefined ? "—" : `${difference >= 0 ? "+" : ""}${difference.toFixed(2)}点`}
+          </strong>
+        </div>
+      </div>
+      <div className="section-list-head">
+        <span>大問ごとの得点／満点</span>
+        <strong>合計 {sectionTotal}/{sectionMaxTotal}</strong>
       </div>
       <div className="section-bars">
         {record.sections.map((section) => {
@@ -135,6 +160,12 @@ function SectionBars({ record }: { record: ExamRecord }) {
           );
         })}
       </div>
+      {record.sectionScoreNote && (
+        <div className="score-warning" role="note">
+          <strong>5点の不一致</strong>
+          <p>{record.sectionScoreNote}</p>
+        </div>
+      )}
       <div className="weakness-box">
         <span>最重要弱点</span>
         <strong>{record.primaryWeakness}</strong>
@@ -158,7 +189,7 @@ export default function Home() {
         <nav aria-label="メインナビゲーション">
           <a href="#top" className="nav-link active"><span>⌂</span>ホーム</a>
           <a href="#history" className="nav-link"><span>↗</span>得点推移</a>
-          <a href="#analysis" className="nav-link"><span>◇</span>分析</a>
+          <a href="#breakdown" className="nav-link"><span>◇</span>得点内訳</a>
         </nav>
         <div className="sidebar-note">
           <span className="status-dot" />
@@ -217,16 +248,18 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="analysis" className="section-block">
+        <section id="breakdown" className="section-block">
           <div className="section-heading">
             <div>
               <p className="section-number">03</p>
-              <h2>最新回の大問分析</h2>
+              <h2>4試験の得点内訳</h2>
             </div>
-            <p>得点率と残っている弱点</p>
+            <p>合計・全国平均・大問別得点</p>
           </div>
           <div className="section-score-grid">
-            {subjects.map((subject) => <SectionBars key={subject} record={latestRecord(subject)} />)}
+            {[...examRecords]
+              .sort((a, b) => a.practicedAt.localeCompare(b.practicedAt))
+              .map((record) => <ExamBreakdownCard key={record.id} record={record} />)}
           </div>
         </section>
 
@@ -252,7 +285,7 @@ export default function Home() {
             <article className="insight">
               <span className="insight-label">安定している科目</span>
               <strong>数学ⅡBCは70点台を維持</strong>
-              <p>本試75点、追試77点。基本・標準問題の完成度は比較的高い状態です。</p>
+              <p>本試70点、追試77点。基本・標準問題の完成度は比較的高い状態です。</p>
             </article>
           </div>
         </section>
@@ -267,7 +300,7 @@ export default function Home() {
           <div className="records-table-wrap">
             <table>
               <thead>
-                <tr><th>解いた順</th><th>試験</th><th>科目</th><th>実施日</th><th>得点</th><th>評価</th></tr>
+                <tr><th>解いた順</th><th>試験</th><th>科目</th><th>実施日</th><th>合計得点</th><th>全国平均点</th><th>評価</th></tr>
               </thead>
               <tbody>
                 {[...examRecords].sort((a, b) => a.practicedAt.localeCompare(b.practicedAt)).map((record, index) => (
@@ -277,6 +310,7 @@ export default function Home() {
                     <td>{record.subject}</td>
                     <td>{formatPracticeDate(record.practicedAt)}</td>
                     <td><strong>{record.score}</strong> / {record.maxScore}</td>
+                    <td>{record.nationalAverage === undefined ? "未確認" : record.nationalAverage.toFixed(2)}</td>
                     <td><span className={`evaluation ${record.evaluation === "良好" ? "good" : "needs-work"}`}>{record.evaluation}</span></td>
                   </tr>
                 ))}
@@ -286,11 +320,10 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.1</span>
+          <span>KYO-SU v0.2</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>
     </div>
   );
 }
-
