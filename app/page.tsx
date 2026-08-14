@@ -44,7 +44,9 @@ function ScoreCard({ subject }: { subject: Subject }) {
 function TrendChart({ subject }: { subject: Subject }) {
   const records = recordsBySubject(subject);
   const colorClass = subject === "数学ⅠA" ? "trend-ia" : "trend-iibc";
-  const [first, latest] = records;
+  const first = records[0];
+  const latest = records.at(-1)!;
+  const delta = latest.score - first.score;
   const y = (score: number) => 102 - score;
 
   return (
@@ -54,9 +56,14 @@ function TrendChart({ subject }: { subject: Subject }) {
           <p className="trend-subject">{subject}</p>
           <p className="muted">科目内演習順</p>
         </div>
-        <p className="trend-score">
-          {first.score} <span>→</span> {latest.score}
-        </p>
+        <div className="trend-result">
+          <p className="trend-score">
+            {first.score} <span>→</span> {latest.score}
+          </p>
+          <span className={`trend-delta ${delta >= 0 ? "positive-delta" : "negative-delta"}`}>
+            {delta >= 0 ? "+" : ""}{delta}点
+          </span>
+        </div>
       </div>
       <svg
         className={`trend-chart ${colorClass}`}
@@ -107,10 +114,59 @@ function ComparisonRow({ record }: { record: ExamRecord }) {
           <strong>{record.nationalAverage.toFixed(2)}</strong>
         </div>
       </div>
-      <span className={`difference ${difference >= 0 ? "positive" : "negative"}`}>
+      <span className={`difference difference-badge ${difference >= 0 ? "positive-difference" : "negative-difference"}`}>
+        <small>平均との差</small>
         {difference >= 0 ? "+" : ""}{difference.toFixed(2)}点
       </span>
     </div>
+  );
+}
+
+function SectionComparisonCard({ subject }: { subject: Subject }) {
+  const records = recordsBySubject(subject);
+  const sectionNumbers = [...new Set(records.flatMap((record) => record.sections.map((section) => section.section)))].sort((a, b) => a - b);
+
+  return (
+    <article className="card section-comparison-card">
+      <div className="section-comparison-head">
+        <div>
+          <span className={`subject-dot ${subject === "数学ⅠA" ? "ia" : "iibc"}`} />
+          <h3>{subject}</h3>
+        </div>
+        <div className="comparison-legend" aria-label="凡例">
+          {records.map((record, index) => (
+            <span key={record.id}><i className={index === 0 ? "first-attempt" : "latest-attempt"} />{record.type}</span>
+          ))}
+        </div>
+      </div>
+      <div className="section-comparison-rows">
+        {sectionNumbers.map((sectionNumber) => (
+          <div className="section-comparison-row" key={sectionNumber}>
+            <strong>第{sectionNumber}問</strong>
+            <div className="attempt-bars">
+              {records.map((record, index) => {
+                const section = record.sections.find((item) => item.section === sectionNumber);
+                if (!section) return null;
+                const rate = Math.round((section.score / section.maxScore) * 100);
+                return (
+                  <div className="attempt-bar-line" key={record.id}>
+                    <span>{record.type}</span>
+                    <div className="bar-track">
+                      <div
+                        className={`bar ${index === 0 ? "first-attempt" : "latest-attempt"}`}
+                        style={{ width: `${rate}%` }}
+                      />
+                    </div>
+                    <strong>{section.score}/{section.maxScore}</strong>
+                    <small>{rate}%</small>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -182,6 +238,10 @@ export default function Home() {
   const latestDate = [...examRecords].sort((a, b) => b.practicedAt.localeCompare(a.practicedAt))[0].practicedAt;
   const average = examRecords.reduce((sum, record) => sum + record.score, 0) / examRecords.length;
   const mainRecords = examRecords.filter((record) => record.type === "本試");
+  const iaRecords = recordsBySubject("数学ⅠA");
+  const iibcRecords = recordsBySubject("数学ⅡBC");
+  const iaChange = iaRecords.at(-1)!.score - iaRecords[0].score;
+  const iibcChange = iibcRecords.at(-1)!.score - iibcRecords[0].score;
 
   return (
     <div className="app-shell">
@@ -193,13 +253,14 @@ export default function Home() {
         <nav aria-label="メインナビゲーション">
           <a href="#top" className="nav-link active"><span>⌂</span>ホーム</a>
           <a href="#history" className="nav-link"><span>↗</span>得点推移</a>
-          <a href="#breakdown" className="nav-link"><span>◇</span>得点内訳</a>
+          <a href="#section-comparison" className="nav-link"><span>≋</span>大問比較</a>
+          <a href="#national" className="nav-link"><span>◇</span>全国比較</a>
         </nav>
         <div className="sidebar-note">
           <span className="status-dot" />
           <div>
-            <strong>固定データ版</strong>
-            <p>Notion接続は次の段階</p>
+            <strong>Notion同期版</strong>
+            <p>Actionsから手動更新</p>
           </div>
         </div>
       </aside>
@@ -239,10 +300,23 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="section-block">
+        <section id="section-comparison" className="section-block">
           <div className="section-heading">
             <div>
               <p className="section-number">02</p>
+              <h2>大問別得点率の変化</h2>
+            </div>
+            <p>同じ科目の本試・追試を比較</p>
+          </div>
+          <div className="section-comparison-grid">
+            {subjects.map((subject) => <SectionComparisonCard key={subject} subject={subject} />)}
+          </div>
+        </section>
+
+        <section id="national" className="section-block">
+          <div className="section-heading">
+            <div>
+              <p className="section-number">03</p>
               <h2>全国平均との差</h2>
             </div>
             <p>平均点が公開されている本試のみ</p>
@@ -255,7 +329,7 @@ export default function Home() {
         <section id="breakdown" className="section-block">
           <div className="section-heading">
             <div>
-              <p className="section-number">03</p>
+              <p className="section-number">04</p>
               <h2>4試験の得点内訳</h2>
             </div>
             <p>合計・全国平均・大問別得点</p>
@@ -270,15 +344,15 @@ export default function Home() {
         <section className="section-block">
           <div className="section-heading">
             <div>
-              <p className="section-number">04</p>
+              <p className="section-number">05</p>
               <h2>現在の分析</h2>
             </div>
           </div>
           <div className="insight-grid">
             <article className="insight primary-insight">
               <span className="insight-label">最も大きい変化</span>
-              <strong>数学ⅠAが 44 → 73点</strong>
-              <p>基本問題の回収力は上昇。第1問は追試で満点になりました。</p>
+              <strong>数学ⅠAが {iaRecords[0].score} → {iaRecords.at(-1)!.score}点</strong>
+              <p>前回から{iaChange >= 0 ? "+" : ""}{iaChange}点。基本問題の回収力は上昇し、第1問は追試で満点になりました。</p>
               <ArrowUpRightIcon />
             </article>
             <article className="insight">
@@ -289,7 +363,7 @@ export default function Home() {
             <article className="insight">
               <span className="insight-label">安定している科目</span>
               <strong>数学ⅡBCは70点台を維持</strong>
-              <p>本試70点、追試77点。基本・標準問題の完成度は比較的高い状態です。</p>
+              <p>本試{iibcRecords[0].score}点、追試{iibcRecords.at(-1)!.score}点（{iibcChange >= 0 ? "+" : ""}{iibcChange}点）。基本・標準問題の完成度は比較的高い状態です。</p>
             </article>
           </div>
         </section>
@@ -297,7 +371,7 @@ export default function Home() {
         <section className="section-block" aria-labelledby="records-title">
           <div className="section-heading">
             <div>
-              <p className="section-number">05</p>
+              <p className="section-number">06</p>
               <h2 id="records-title">4試験の記録</h2>
             </div>
           </div>
@@ -326,7 +400,7 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.5</span>
+          <span>KYO-SU v0.6</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>

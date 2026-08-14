@@ -92,7 +92,7 @@ export const examAnalyses: Record<string, ExamAnalysis> = {
     recordId: "2025-main-2bc",
     englishLabel: "2025 MAIN EXAM · MATHEMATICS IIBC",
     scoringUnits: 47,
-    headline: "70点の中身は、基本・標準処理がかなり強い。",
+    headline: "75点の中身は、基本・標準処理がかなり強い。",
     lead: "全国正答率70%以上の問題で誤答はなく、50%以上の問題でも誤答はほぼ1件のみでした。失点は全国的にも難しい大問後半へ集中しています。",
     leadHighlight: "数学ⅡBC全体が弱いのではなく、終盤の条件整理が主な伸びしろです。",
     rateSummary: [
@@ -116,7 +116,7 @@ export const examAnalyses: Record<string, ExamAnalysis> = {
   "2025-retest-2bc": {
     recordId: "2025-retest-2bc",
     englishLabel: "2025 RETEST · MATHEMATICS IIBC",
-    previousChange: 7,
+    previousChange: 2,
     headline: "77点。数列は満点で、選択分野も高得点。",
     lead: "第1問15/15、第4問の数列16/16、ベクトル14/16、複素数平面13/16と、複数分野で安定しました。一方、第3問は10/22点でした。",
     leadHighlight: "70点台を維持しながら、積分の条件整理に改善余地が残っています。",
