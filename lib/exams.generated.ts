@@ -5,3 +5,6 @@ export const examRecordsData = [
   { id: "2025-retest-1a", name: "2025 追試 数学ⅠA", year: 2025, type: "追試", subject: "数学ⅠA", attemptOrder: 2, practicedAt: "2025-08-13", score: 73, maxScore: 100, evaluation: "良好", primaryWeakness: "図形の性質", summary: "本試から29点上昇。第1問は満点だが、図形の性質は2回続けて弱点として残った。", sections: [{ section: 1, score: 30, maxScore: 30 }, { section: 2, score: 21, maxScore: 30 }, { section: 3, score: 8, maxScore: 20 }, { section: 4, score: 14, maxScore: 20 }] },
   { id: "2025-retest-2bc", name: "2025 追試 数学ⅡBC", year: 2025, type: "追試", subject: "数学ⅡBC", attemptOrder: 2, practicedAt: "2025-08-14", score: 77, maxScore: 100, evaluation: "良好", primaryWeakness: "絶対値を含む積分・場合分け", summary: "70点台を維持。数列は満点で、難しい設定や終盤の判断が今後の伸びしろ。", sections: [{ section: 1, score: 15, maxScore: 15 }, { section: 2, score: 9, maxScore: 15 }, { section: 3, score: 10, maxScore: 22 }, { section: 4, score: 16, maxScore: 16 }, { section: 6, score: 14, maxScore: 16 }, { section: 7, score: 13, maxScore: 16 }] },
 ] as const;
+
+// GitHub Actions fills this from Notion before deployment.
+export const questionResultsData = [] as const;
