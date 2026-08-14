@@ -18,6 +18,7 @@ export type ExamRecord = {
   score: number;
   maxScore: number;
   nationalAverage?: number;
+  sectionScoreNote?: string;
   evaluation: "良好" | "要改善";
   primaryWeakness: string;
   summary: string;
@@ -76,13 +77,15 @@ export const examRecords: ExamRecord[] = [
     subject: "数学ⅡBC",
     attemptOrder: 1,
     practicedAt: "2026-08-08",
-    score: 75,
+    score: 70,
     maxScore: 100,
     nationalAverage: 51.56,
+    sectionScoreNote:
+      "大問別得点の合計は75点です。正式な総得点70点と5点差があるため、採点表の再確認が必要です。",
     evaluation: "良好",
     primaryWeakness: "大問終盤の条件整理",
     summary:
-      "全国平均を23.44点上回った。基本・標準問題を安定して回収できている。",
+      "正式な総得点は70点。全国平均を18.44点上回った。大問別合計75点との差は再確認待ち。",
     sections: [
       { section: 1, score: 8, maxScore: 15 },
       { section: 2, score: 12, maxScore: 15 },
@@ -136,4 +139,3 @@ export const formatPracticeDate = (date: string) => {
   const [, month, day] = date.split("-").map(Number);
   return `${month}月${day}日`;
 };
-
