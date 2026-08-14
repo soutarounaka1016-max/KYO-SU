@@ -72,10 +72,31 @@ export function normalizePage(page) {
   const year = Number(required(valueOf(p["年度"]), "年度", name));
   const type = required(valueOf(p["試験区分"]), "試験区分", name);
   const subject = required(valueOf(p["科目"]), "科目", name);
-  const id = recordId(year, type, subject);
-  const rawScore = Number(required(valueOf(p["得点"]), "得点", name));
+  const attemptOrder = Number(required(valueOf(p["科目内演習順"]), "科目内演習順", name));
+  const practicedAt = required(valueOf(p["実施日"]), "実施日", name);
+  const score = Number(required(valueOf(p["得点"]), "得点", name));
+  const maxScore = Number(required(valueOf(p["満点"]), "満点", name));
 
-  const score = rawScore;
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new Error(`${name}: 年度 must be an integer between 2000 and 2100.`);
+  }
+  if (!["本試", "追試"].includes(type)) {
+    throw new Error(`${name}: 試験区分 must be 本試 or 追試.`);
+  }
+  if (!["数学ⅠA", "数学ⅡBC"].includes(subject)) {
+    throw new Error(`${name}: 科目 must be 数学ⅠA or 数学ⅡBC.`);
+  }
+  if (!Number.isInteger(attemptOrder) || attemptOrder < 1) {
+    throw new Error(`${name}: 科目内演習順 must be a positive integer.`);
+  }
+  if (typeof practicedAt !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(practicedAt) || Number.isNaN(Date.parse(`${practicedAt}T00:00:00Z`))) {
+    throw new Error(`${name}: 実施日 must be a valid YYYY-MM-DD date.`);
+  }
+  if (!Number.isFinite(maxScore) || maxScore <= 0 || !Number.isFinite(score) || score < 0 || score > maxScore) {
+    throw new Error(`${name}: 得点 and 満点 are outside the valid range.`);
+  }
+
+  const id = recordId(year, type, subject);
   const sections = [];
   for (let section = 1; section <= 7; section += 1) {
     const sectionScore = valueOf(p[`第${section}問得点`]);
@@ -84,14 +105,29 @@ export function normalizePage(page) {
     if (sectionScore === undefined || sectionMax === undefined) {
       throw new Error(`${name}: section ${section} needs both score and max score.`);
     }
-    sections.push({ section, score: Number(sectionScore), maxScore: Number(sectionMax) });
+    const normalizedScore = Number(sectionScore);
+    const normalizedMax = Number(sectionMax);
+    if (!Number.isFinite(normalizedMax) || normalizedMax <= 0 || !Number.isFinite(normalizedScore) || normalizedScore < 0 || normalizedScore > normalizedMax) {
+      throw new Error(`${name}: 第${section}問の得点または満点が不正です。`);
+    }
+    sections.push({ section, score: normalizedScore, maxScore: normalizedMax });
   }
   if (sections.length === 0) throw new Error(`${name}: no section scores were found.`);
 
   const sectionTotal = sections.reduce((sum, section) => sum + section.score, 0);
+  const sectionMaxTotal = sections.reduce((sum, section) => sum + section.maxScore, 0);
+  if (sectionTotal !== score) {
+    throw new Error(`${name}: 大問別得点の合計${sectionTotal}点と総得点${score}点が一致しません。`);
+  }
+  if (sectionMaxTotal !== maxScore) {
+    throw new Error(`${name}: 大問別満点の合計${sectionMaxTotal}点と満点${maxScore}点が一致しません。`);
+  }
   const evaluationSource = valueOf(p["総合評価"]);
   const evaluation = ["良好", "非常に良好"].includes(evaluationSource) ? "良好" : "要改善";
   const nationalAverage = valueOf(p["全国平均点"]);
+  if (nationalAverage !== undefined && (!Number.isFinite(Number(nationalAverage)) || Number(nationalAverage) < 0 || Number(nationalAverage) > maxScore)) {
+    throw new Error(`${name}: 全国平均点が有効範囲外です。`);
+  }
 
   return {
     id,
@@ -99,14 +135,11 @@ export function normalizePage(page) {
     year,
     type,
     subject,
-    attemptOrder: Number(required(valueOf(p["科目内演習順"]), "科目内演習順", name)),
-    practicedAt: required(valueOf(p["実施日"]), "実施日", name),
+    attemptOrder,
+    practicedAt,
     score,
-    maxScore: Number(required(valueOf(p["満点"]), "満点", name)),
+    maxScore,
     ...(nationalAverage === undefined ? {} : { nationalAverage: Number(nationalAverage) }),
-    ...(sectionTotal === score ? {} : {
-      sectionScoreNote: `大問別得点の合計は${sectionTotal}点です。正式な総得点${score}点と${Math.abs(sectionTotal - score)}点差があるため、採点表の再確認が必要です。`,
-    }),
     evaluation,
     primaryWeakness: required(valueOf(p["最重要弱点"]), "最重要弱点", name),
     summary: required(valueOf(p["AI分析要約"]), "AI分析要約", name),
@@ -136,9 +169,19 @@ async function loadPages() {
 async function main() {
   const pages = await loadPages();
   const records = pages.map(normalizePage).sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
-  if (records.length !== 4) throw new Error(`Expected 4 exam records, received ${records.length}. Deployment stopped.`);
+  if (records.length === 0) throw new Error("No exam records were found. Deployment stopped.");
   if (new Set(records.map((record) => record.id)).size !== records.length) {
-    throw new Error("Duplicate exam IDs were generated. Deployment stopped.");
+    throw new Error("Duplicate exam IDs were generated. Check 年度・試験区分・科目. Deployment stopped.");
+  }
+  for (const subject of ["数学ⅠA", "数学ⅡBC"]) {
+    const subjectRecords = records.filter((record) => record.subject === subject);
+    if (subjectRecords.length === 0) {
+      throw new Error(`${subject}: at least one record is required. Deployment stopped.`);
+    }
+    const orders = subjectRecords.map((record) => record.attemptOrder);
+    if (new Set(orders).size !== orders.length) {
+      throw new Error(`${subject}: 科目内演習順 contains duplicates. Deployment stopped.`);
+    }
   }
 
   const source = `// Generated from Notion by scripts/sync-notion.mjs. Do not edit directly.\nexport const examRecordsData = ${JSON.stringify(records, null, 2)} as const;\n`;
