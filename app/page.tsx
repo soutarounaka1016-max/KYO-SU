@@ -176,6 +176,126 @@ function SectionComparisonCard({ subject }: { subject: Subject }) {
   );
 }
 
+function WeaknessTimeline() {
+  const records = [...examRecords].sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    counts.set(record.primaryWeakness, (counts.get(record.primaryWeakness) ?? 0) + 1);
+  }
+  const repeated = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .sort((a, b) => b[1] - a[1]);
+
+  return (
+    <article className="card weakness-timeline-card">
+      <div className="analysis-card-head">
+        <div>
+          <span className="insight-label">WEAKNESS HISTORY</span>
+          <h3>最重要弱点の推移</h3>
+        </div>
+        <span className="analysis-count">{records.length}回分</span>
+      </div>
+      {repeated.length > 0 && (
+        <div className="repeat-summary">
+          <span>繰り返している弱点</span>
+          <strong>{repeated.map(([name, count]) => `${name}（${count}回）`).join("・")}</strong>
+        </div>
+      )}
+      <div className="weakness-timeline">
+        {records.map((record, index) => (
+          <div className="weakness-timeline-row" key={record.id}>
+            <div className="timeline-marker">
+              <span>{index + 1}</span>
+            </div>
+            <div>
+              <p>{formatPracticeDate(record.practicedAt)} · {record.subject} · {record.type}</p>
+              <strong>{record.primaryWeakness}</strong>
+            </div>
+            {(counts.get(record.primaryWeakness) ?? 0) > 1 && (
+              <span className="repeat-badge">{counts.get(record.primaryWeakness)}回</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function SectionDeltaCard({ subject }: { subject: Subject }) {
+  const records = recordsBySubject(subject).slice(-2);
+  if (records.length < 2) {
+    return (
+      <article className="card delta-card">
+        <div className="analysis-card-head"><h3>{subject}</h3></div>
+        <p className="empty-analysis">2回目の記録から、大問別の改善・悪化を表示します。</p>
+      </article>
+    );
+  }
+
+  const [previous, latest] = records;
+  const deltas = latest.sections
+    .map((section) => {
+      const oldSection = previous.sections.find((item) => item.section === section.section);
+      if (!oldSection) return null;
+      const previousRate = Math.round((oldSection.score / oldSection.maxScore) * 100);
+      const latestRate = Math.round((section.score / section.maxScore) * 100);
+      return {
+        section: section.section,
+        previousRate,
+        latestRate,
+        delta: latestRate - previousRate,
+      };
+    })
+    .filter((item): item is { section: number; previousRate: number; latestRate: number; delta: number } => item !== null);
+
+  if (deltas.length === 0) {
+    return (
+      <article className="card delta-card">
+        <div className="analysis-card-head"><h3>{subject}</h3></div>
+        <p className="empty-analysis">直近2回で共通する大問がないため、比較できません。</p>
+      </article>
+    );
+  }
+
+  const largestGain = [...deltas].sort((a, b) => b.delta - a.delta)[0];
+  const largestDrop = [...deltas].sort((a, b) => a.delta - b.delta)[0];
+
+  return (
+    <article className="card delta-card">
+      <div className="analysis-card-head">
+        <div>
+          <span className="insight-label">SECTION CHANGE</span>
+          <h3>{subject}</h3>
+        </div>
+        <span className="analysis-count">{previous.attemptOrder}回目 → {latest.attemptOrder}回目</span>
+      </div>
+      <div className="delta-highlights">
+        <div className="gain">
+          <span>最大の改善</span>
+          <strong>第{largestGain.section}問</strong>
+          <small>+{largestGain.delta}ポイント</small>
+        </div>
+        <div className={largestDrop.delta < 0 ? "drop" : "steady"}>
+          <span>{largestDrop.delta < 0 ? "最大の低下" : "全大問で改善"}</span>
+          <strong>第{largestDrop.section}問</strong>
+          <small>{largestDrop.delta >= 0 ? "+" : ""}{largestDrop.delta}ポイント</small>
+        </div>
+      </div>
+      <div className="delta-list">
+        {deltas.map((item) => (
+          <div className="delta-row" key={item.section}>
+            <strong>第{item.section}問</strong>
+            <span>{item.previousRate}% → {item.latestRate}%</span>
+            <b className={item.delta > 0 ? "delta-up" : item.delta < 0 ? "delta-down" : "delta-flat"}>
+              {item.delta >= 0 ? "+" : ""}{item.delta}
+            </b>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function ExamBreakdownCard({ record }: { record: ExamRecord }) {
   const sectionTotal = record.sections.reduce((sum, section) => sum + section.score, 0);
   const sectionMaxTotal = record.sections.reduce((sum, section) => sum + section.maxScore, 0);
@@ -262,6 +382,7 @@ export default function Home() {
           <a href="#history" className="nav-link"><span>↗</span>得点推移</a>
           <a href="#section-comparison" className="nav-link"><span>≋</span>大問比較</a>
           <a href="#national" className="nav-link"><span>◇</span>全国比較</a>
+          <a href="#weakness" className="nav-link"><span>◎</span>弱点分析</a>
         </nav>
         <div className="sidebar-note">
           <span className="status-dot" />
@@ -359,7 +480,7 @@ export default function Home() {
             <article className="insight primary-insight">
               <span className="insight-label">最も大きい変化</span>
               <strong>数学ⅠAが {iaRecords[0].score} → {iaRecords.at(-1)!.score}点</strong>
-              <p>前回から{iaChange >= 0 ? "+" : ""}{iaChange}点。基本問題の回収力は上昇し、第1問は追試で満点になりました。</p>
+              <p>初回から{iaChange >= 0 ? "+" : ""}{iaChange}点。基本問題の回収力は上昇し、第1問は追試で満点になりました。</p>
               <ArrowUpRightIcon />
             </article>
             <article className="insight">
@@ -375,10 +496,26 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="section-block" aria-labelledby="records-title">
+        <section id="weakness" className="section-block">
           <div className="section-heading">
             <div>
               <p className="section-number">06</p>
+              <h2>弱点と大問の変化</h2>
+            </div>
+            <p>Notionの記録から自動分析</p>
+          </div>
+          <div className="weakness-analysis-layout">
+            <WeaknessTimeline />
+            <div className="delta-card-grid">
+              {subjects.map((subject) => <SectionDeltaCard key={subject} subject={subject} />)}
+            </div>
+          </div>
+        </section>
+
+        <section className="section-block" aria-labelledby="records-title">
+          <div className="section-heading">
+            <div>
+              <p className="section-number">07</p>
               <h2 id="records-title">{examRecords.length}試験の記録</h2>
             </div>
           </div>
@@ -407,7 +544,7 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.7</span>
+          <span>KYO-SU v0.8</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>
