@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ExamAnalysis, PriorityMiss } from "@/lib/exam-analysis";
-import { examRecords, formatPracticeDate } from "@/lib/exams";
+import { examRecords, formatPracticeDate, questionResultsByRecord } from "@/lib/exams";
+import styles from "./question-analysis.module.css";
 
 function priorityClass(priority: PriorityMiss["priority"]) {
   if (priority === "最優先") return "urgent";
@@ -10,6 +11,31 @@ function priorityClass(priority: PriorityMiss["priority"]) {
 
 export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
   const record = examRecords.find((item) => item.id === analysis.recordId)!;
+  const questions = questionResultsByRecord(record.id);
+  const correctQuestions = questions.filter((question) => question.result === "正解");
+  const missedQuestions = questions
+    .filter((question) => question.result === "不正解")
+    .sort((a, b) => b.nationalCorrectRate - a.nationalCorrectRate);
+  const questionPoints = questions.reduce((sum, question) => sum + question.points, 0);
+  const earnedQuestionPoints = correctQuestions.reduce((sum, question) => sum + question.points, 0);
+  const averageNationalRate = questions.length > 0
+    ? questions.reduce((sum, question) => sum + question.nationalCorrectRate, 0) / questions.length
+    : undefined;
+  const fields = Array.from(new Set(questions.map((question) => question.field)))
+    .map((field) => {
+      const fieldQuestions = questions.filter((question) => question.field === field);
+      const maxPoints = fieldQuestions.reduce((sum, question) => sum + question.points, 0);
+      const earnedPoints = fieldQuestions
+        .filter((question) => question.result === "正解")
+        .reduce((sum, question) => sum + question.points, 0);
+      return {
+        field,
+        earnedPoints,
+        maxPoints,
+        rate: maxPoints === 0 ? 0 : Math.round((earnedPoints / maxPoints) * 100),
+      };
+    })
+    .sort((a, b) => a.rate - b.rate);
   const difference = record.nationalAverage === undefined ? undefined : record.score - record.nationalAverage;
   const sectionTotal = record.sections.reduce((sum, section) => sum + section.score, 0);
 
@@ -133,6 +159,83 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </section>
       )}
 
+      <section className="detail-section">
+        <div className="section-heading">
+          <div><p className="section-number">NOTION DATA</p><h2>設問別分析</h2></div>
+          <p>{questions.length > 0 ? `${questions.length}件を同期` : "設問データ未登録"}</p>
+        </div>
+
+        {questions.length === 0 ? (
+          <div className="analysis-notice" role="note">
+            <strong>この試験の設問データはまだありません</strong>
+            <p>Notionの設問分析に追加して次回同期すると、ここへ自動表示されます。全国正答率などは推測しません。</p>
+          </div>
+        ) : (
+          <div className={styles.analysis}>
+            <div className={styles.summaryGrid}>
+              <article><span>設問数</span><strong>{questions.length}</strong><small>件</small></article>
+              <article><span>正解／不正解</span><strong>{correctQuestions.length}<small> / {missedQuestions.length}</small></strong><small>件</small></article>
+              <article><span>設問別回収点</span><strong>{earnedQuestionPoints}<small> / {questionPoints}</small></strong><small>点</small></article>
+              <article><span>全国正答率の平均</span><strong>{averageNationalRate?.toFixed(1)}</strong><small>%</small></article>
+            </div>
+
+            <div className={styles.blockHeading}>
+              <div><span>FIELD BREAKDOWN</span><h3>分野別の得点率</h3></div>
+              <p>低い分野から表示</p>
+            </div>
+            <div className={styles.fieldGrid}>
+              {fields.map((field) => (
+                <article key={field.field}>
+                  <div><strong>{field.field}</strong><span>{field.earnedPoints}/{field.maxPoints}点</span></div>
+                  <div className={styles.fieldTrack}><span style={{ width: `${field.rate}%` }} /></div>
+                  <b>{field.rate}%</b>
+                </article>
+              ))}
+            </div>
+
+            <div className={styles.blockHeading}>
+              <div><span>PRIORITY MISSES</span><h3>全国正答率が高い取りこぼし</h3></div>
+              <p>上位8件</p>
+            </div>
+            {missedQuestions.length === 0 ? (
+              <div className={styles.emptySuccess}>登録された設問はすべて正解です。</div>
+            ) : (
+              <div className={styles.missList}>
+                {missedQuestions.slice(0, 8).map((question) => (
+                  <article key={question.id}>
+                    <span className={styles.priority}>{question.priority}</span>
+                    <div><strong>第{question.section}問 {question.code}</strong><p>{question.field}{question.topic ? ` · ${question.topic}` : ""}</p></div>
+                    <div><span>全国正答率</span><strong>{question.nationalCorrectRate.toFixed(2)}%</strong></div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            <details className={styles.allQuestions}>
+              <summary>全{questions.length}件の設問データを見る</summary>
+              <div className={styles.questionList}>
+                {questions.map((question) => (
+                  <article key={question.id} className={question.result === "正解" ? styles.correct : styles.incorrect}>
+                    <div className={styles.questionTop}>
+                      <span>{question.result}</span>
+                      <strong>第{question.section}問 {question.code}</strong>
+                      <small>{question.points}点 · 全国正答率 {question.nationalCorrectRate.toFixed(2)}%</small>
+                    </div>
+                    <div className={styles.questionMeta}>
+                      <span>{question.field}</span>
+                      {question.topic && <span>{question.topic}</span>}
+                      <span>{question.priority}</span>
+                    </div>
+                    {question.content && <p>{question.content}</p>}
+                    {question.aiAnalysis && <p className={styles.aiNote}><strong>Notion分析：</strong>{question.aiAnalysis}</p>}
+                  </article>
+                ))}
+              </div>
+            </details>
+          </div>
+        )}
+      </section>
+
       <section className="detail-section two-column-detail">
         <article className="strength-card"><span className="insight-label">確認できた強み</span><h2>{analysis.strength.title}</h2><strong>{analysis.strength.label}</strong><p>{analysis.strength.detail}</p></article>
         <div className="weakness-rankings">
@@ -141,7 +244,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </div>
       </section>
 
-      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.8</span></footer>
+      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.9</span></footer>
     </main>
   );
 }
