@@ -21,7 +21,7 @@ function ArrowUpRightIcon() {
 
 function ScoreCard({ subject }: { subject: Subject }) {
   const record = latestRecord(subject);
-  const difference = previousDifference(subject) ?? 0;
+  const difference = previousDifference(subject);
 
   return (
     <article className="card score-card">
@@ -35,7 +35,9 @@ function ScoreCard({ subject }: { subject: Subject }) {
       </div>
       <div className="card-meta">
         <span>{record.year} {record.type}</span>
-        <span className="positive">前回比 +{difference}</span>
+        {difference === undefined
+          ? <span>初回記録</span>
+          : <span className={difference >= 0 ? "positive" : "negative"}>前回比 {difference >= 0 ? "+" : ""}{difference}</span>}
       </div>
     </article>
   );
@@ -48,6 +50,8 @@ function TrendChart({ subject }: { subject: Subject }) {
   const latest = records.at(-1)!;
   const delta = latest.score - first.score;
   const y = (score: number) => 102 - score;
+  const x = (index: number) => records.length === 1 ? 210 : 62 + (300 * index) / (records.length - 1);
+  const points = records.map((record, index) => `${x(index)},${y(record.score)}`).join(" ");
 
   return (
     <article className="trend-card">
@@ -74,13 +78,15 @@ function TrendChart({ subject }: { subject: Subject }) {
         {[25, 50, 75, 100].map((value) => (
           <line key={value} x1="32" y1={y(value)} x2="392" y2={y(value)} className="grid-line" />
         ))}
-        <path d={`M62 ${y(first.score)} L362 ${y(latest.score)}`} className="score-path" />
-        <circle cx="62" cy={y(first.score)} r="6" className="score-point" />
-        <circle cx="362" cy={y(latest.score)} r="6" className="score-point" />
-        <text x="62" y={y(first.score) - 12} textAnchor="middle">{first.score}</text>
-        <text x="362" y={y(latest.score) - 12} textAnchor="middle">{latest.score}</text>
+        <polyline points={points} className="score-path" />
+        {records.map((record, index) => (
+          <g key={record.id}>
+            <circle cx={x(index)} cy={y(record.score)} r="6" className="score-point" />
+            <text x={x(index)} y={y(record.score) - 12} textAnchor="middle">{record.score}</text>
+          </g>
+        ))}
       </svg>
-      <div className="chart-labels">
+      <div className="chart-labels" style={{ gridTemplateColumns: `repeat(${records.length}, minmax(58px, 1fr))` }}>
         {records.map((record) => (
           <span key={record.id}>
             {record.attemptOrder}回目・{record.type}<br />
@@ -123,7 +129,7 @@ function ComparisonRow({ record }: { record: ExamRecord }) {
 }
 
 function SectionComparisonCard({ subject }: { subject: Subject }) {
-  const records = recordsBySubject(subject);
+  const records = recordsBySubject(subject).slice(-2);
   const sectionNumbers = [...new Set(records.flatMap((record) => record.sections.map((section) => section.section)))].sort((a, b) => a - b);
 
   return (
@@ -135,7 +141,7 @@ function SectionComparisonCard({ subject }: { subject: Subject }) {
         </div>
         <div className="comparison-legend" aria-label="凡例">
           {records.map((record, index) => (
-            <span key={record.id}><i className={index === 0 ? "first-attempt" : "latest-attempt"} />{record.type}</span>
+            <span key={record.id}><i className={index === 0 ? "first-attempt" : "latest-attempt"} />{record.attemptOrder}回目</span>
           ))}
         </div>
       </div>
@@ -150,7 +156,7 @@ function SectionComparisonCard({ subject }: { subject: Subject }) {
                 const rate = Math.round((section.score / section.maxScore) * 100);
                 return (
                   <div className="attempt-bar-line" key={record.id}>
-                    <span>{record.type}</span>
+                    <span>{record.attemptOrder}回</span>
                     <div className="bar-track">
                       <div
                         className={`bar ${index === 0 ? "first-attempt" : "latest-attempt"}`}
@@ -227,7 +233,7 @@ function ExamBreakdownCard({ record }: { record: ExamRecord }) {
         <span>最重要弱点</span>
         <strong>{record.primaryWeakness}</strong>
       </div>
-      <Link href={`/exams/${record.id}`} className="detail-link">
+      <Link href={`/records/${record.id}`} className="detail-link">
         詳細分析を見る <span>→</span>
       </Link>
     </article>
@@ -241,7 +247,8 @@ export default function Home() {
   const iaRecords = recordsBySubject("数学ⅠA");
   const iibcRecords = recordsBySubject("数学ⅡBC");
   const iaChange = iaRecords.at(-1)!.score - iaRecords[0].score;
-  const iibcChange = iibcRecords.at(-1)!.score - iibcRecords[0].score;
+  const iibcPreviousChange = previousDifference("数学ⅡBC");
+  const latestOverall = [...examRecords].sort((a, b) => b.practicedAt.localeCompare(a.practicedAt))[0];
 
   return (
     <div className="app-shell">
@@ -293,7 +300,7 @@ export default function Home() {
               <p className="section-number">01</p>
               <h2>得点推移</h2>
             </div>
-            <p>全4試験・科目内演習順</p>
+            <p>全{examRecords.length}試験・科目内演習順</p>
           </div>
           <div className="trend-grid">
             {subjects.map((subject) => <TrendChart key={subject} subject={subject} />)}
@@ -330,7 +337,7 @@ export default function Home() {
           <div className="section-heading">
             <div>
               <p className="section-number">04</p>
-              <h2>4試験の得点内訳</h2>
+              <h2>{examRecords.length}試験の得点内訳</h2>
             </div>
             <p>合計・全国平均・大問別得点</p>
           </div>
@@ -356,14 +363,14 @@ export default function Home() {
               <ArrowUpRightIcon />
             </article>
             <article className="insight">
-              <span className="insight-label">残る共通課題</span>
-              <strong>図形の性質</strong>
-              <p>数学ⅠAでは2回続けて最重要弱点。単発のミスではなく継続課題です。</p>
+              <span className="insight-label">最新の重点課題</span>
+              <strong>{latestOverall.primaryWeakness}</strong>
+              <p>{latestOverall.name}の分析から取得した、現在の最重要弱点です。</p>
             </article>
             <article className="insight">
-              <span className="insight-label">安定している科目</span>
-              <strong>数学ⅡBCは70点台を維持</strong>
-              <p>本試{iibcRecords[0].score}点、追試{iibcRecords.at(-1)!.score}点（{iibcChange >= 0 ? "+" : ""}{iibcChange}点）。基本・標準問題の完成度は比較的高い状態です。</p>
+              <span className="insight-label">数学ⅡBCの最新状況</span>
+              <strong>最新 {iibcRecords.at(-1)!.score}点</strong>
+              <p>{iibcPreviousChange === undefined ? "初回記録です。" : `前回から${iibcPreviousChange >= 0 ? "+" : ""}${iibcPreviousChange}点。`}最新の推移を自動表示しています。</p>
             </article>
           </div>
         </section>
@@ -372,7 +379,7 @@ export default function Home() {
           <div className="section-heading">
             <div>
               <p className="section-number">06</p>
-              <h2 id="records-title">4試験の記録</h2>
+              <h2 id="records-title">{examRecords.length}試験の記録</h2>
             </div>
           </div>
           <div className="records-table-wrap">
@@ -385,7 +392,7 @@ export default function Home() {
                   <tr key={record.id}>
                     <td><span className="order-badge">{index + 1}</span></td>
                     <td>
-                      <Link href={`/exams/${record.id}`} className="table-detail-link">{record.year} {record.type}</Link>
+                      <Link href={`/records/${record.id}`} className="table-detail-link">{record.year} {record.type}</Link>
                     </td>
                     <td>{record.subject}</td>
                     <td>{formatPracticeDate(record.practicedAt)}</td>
@@ -400,7 +407,7 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.6</span>
+          <span>KYO-SU v0.7</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>

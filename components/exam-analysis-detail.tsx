@@ -45,11 +45,15 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
           {difference !== undefined && <small>点</small>}
         </article>
         <article className="detail-stat">
-          <span>{analysis.scoringUnits ? "採点単位" : "前回比"}</span>
-          <strong className={analysis.previousChange !== undefined ? "positive" : ""}>
-            {analysis.scoringUnits ?? `${analysis.previousChange! >= 0 ? "+" : ""}${analysis.previousChange}`}
+          <span>{analysis.scoringUnits !== undefined ? "採点単位" : analysis.previousChange !== undefined ? "前回比" : "科目内演習"}</span>
+          <strong className={analysis.previousChange !== undefined && analysis.previousChange >= 0 ? "positive" : ""}>
+            {analysis.scoringUnits !== undefined
+              ? analysis.scoringUnits
+              : analysis.previousChange !== undefined
+                ? `${analysis.previousChange >= 0 ? "+" : ""}${analysis.previousChange}`
+                : record.attemptOrder}
           </strong>
-          <small>{analysis.scoringUnits ? "件" : "点"}</small>
+          <small>{analysis.scoringUnits !== undefined ? "件" : analysis.previousChange !== undefined ? "点" : "回目"}</small>
         </article>
         <article className="detail-stat"><span>総合評価</span><strong className="detail-evaluation">{record.evaluation}</strong></article>
       </section>
@@ -137,7 +141,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </div>
       </section>
 
-      <footer className="detail-footer"><Link href="/">← 4試験の一覧に戻る</Link><span>KYO-SU v0.4</span></footer>
+      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.7</span></footer>
     </main>
   );
 }
