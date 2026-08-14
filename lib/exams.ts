@@ -1,4 +1,4 @@
-import { examRecordsData } from "./exams.generated";
+import { examRecordsData, questionResultsData } from "./exams.generated";
 
 export type Subject = "数学ⅠA" | "数学ⅡBC";
 export type ExamType = "本試" | "追試";
@@ -27,10 +27,38 @@ export type ExamRecord = {
   sections: SectionScore[];
 };
 
+export type QuestionResult = {
+  id: string;
+  examId: string;
+  name: string;
+  year: number;
+  type: ExamType;
+  subject: Subject;
+  attemptOrder: number;
+  section: number;
+  code: string;
+  points: number;
+  result: "正解" | "不正解";
+  nationalCorrectRate: number;
+  field: string;
+  topic: string;
+  content: string;
+  priority: "最優先" | "優先" | "要復習" | "低" | "強み" | "通常";
+  aiAnalysis: string;
+};
+
 export const examRecords: ExamRecord[] = examRecordsData.map((record) => ({
   ...record,
   sections: record.sections.map((section) => ({ ...section })),
 })) as ExamRecord[];
+
+export const questionResults: readonly QuestionResult[] =
+  questionResultsData as unknown as readonly QuestionResult[];
+
+export const questionResultsByRecord = (recordId: string) =>
+  questionResults
+    .filter((question) => question.examId === recordId)
+    .sort((a, b) => a.section - b.section || a.code.localeCompare(b.code, "ja"));
 
 export const recordsBySubject = (subject: Subject) =>
   examRecords

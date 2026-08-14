@@ -544,7 +544,7 @@ export default function Home() {
         </section>
 
         <footer>
-          <span>KYO-SU v0.8</span>
+          <span>KYO-SU v0.9</span>
           <span>Data source: Notion「共通テスト数学分析」</span>
         </footer>
       </main>
