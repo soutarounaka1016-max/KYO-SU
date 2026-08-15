@@ -1,7 +1,8 @@
-import { examRecordsData, questionResultsData } from "./exams.generated";
+import { analysisItemsData, examRecordsData, questionResultsData } from "./exams.generated";
 
 export type Subject = "数学ⅠA" | "数学ⅡBC";
 export type ExamType = "本試" | "追試";
+export type Evaluation = "非常に良好" | "良好" | "標準" | "要改善" | "重点改善";
 
 export type SectionScore = {
   section: number;
@@ -21,10 +22,46 @@ export type ExamRecord = {
   maxScore: number;
   nationalAverage?: number;
   sectionScoreNote?: string;
-  evaluation: "良好" | "要改善";
+  evaluation?: Evaluation;
   primaryWeakness: string;
   summary: string;
   sections: SectionScore[];
+};
+
+export type AnalysisItemKind =
+  | "見出し"
+  | "失点帯"
+  | "指標"
+  | "観察"
+  | "優先失点"
+  | "強み"
+  | "弱点"
+  | "注記";
+
+export type AnalysisItemTone =
+  | "positive"
+  | "attention"
+  | "neutral"
+  | "critical"
+  | "priority"
+  | "review"
+  | "low";
+
+export type AnalysisItem = {
+  id: string;
+  examId: string;
+  name: string;
+  kind: AnalysisItemKind;
+  order: number;
+  label?: string;
+  title: string;
+  detail?: string;
+  value?: string;
+  tone?: AnalysisItemTone;
+  code?: string;
+  nationalCorrectRate?: number;
+  points?: number;
+  priority?: "最優先" | "優先" | "要復習";
 };
 
 export type QuestionResult = {
@@ -54,6 +91,9 @@ export const examRecords: ExamRecord[] = examRecordsData.map((record) => ({
 
 export const questionResults: readonly QuestionResult[] =
   questionResultsData as unknown as readonly QuestionResult[];
+
+export const analysisItems: readonly AnalysisItem[] =
+  analysisItemsData as unknown as readonly AnalysisItem[];
 
 export const questionResultsByRecord = (recordId: string) =>
   questionResults
