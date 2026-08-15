@@ -4,6 +4,9 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+  schedule:
+    # Notionの変更を操作なしで取り込む（UTC、混雑しやすい毎時0分を避ける）
+    - cron: "7,22,37,52 * * * *"
 
 permissions:
   contents: read
