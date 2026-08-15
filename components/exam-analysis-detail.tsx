@@ -85,7 +85,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
           </strong>
           <small>{analysis.scoringUnits !== undefined ? "件" : analysis.previousChange !== undefined ? "点" : "回目"}</small>
         </article>
-        <article className="detail-stat"><span>総合評価</span><strong className="detail-evaluation">{record.evaluation}</strong></article>
+        <article className="detail-stat"><span>総合評価</span><strong className="detail-evaluation">{record.evaluation ?? "未確認"}</strong></article>
       </section>
 
       <section className="analysis-lead">
@@ -156,7 +156,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
               <article className="priority-row" key={item.code}>
                 <span className={`priority-badge ${priorityClass(item.priority)}`}>{item.priority}</span>
                 <div className="priority-copy"><strong>{item.code}</strong><span>{item.topic}</span><p>{item.detail}</p></div>
-                <div className="correct-rate"><span>全国正答率</span><strong>{item.correctRate.toFixed(2)}%</strong></div>
+                <div className="correct-rate"><span>全国正答率</span><strong>{item.correctRate === undefined ? "未確認" : `${item.correctRate.toFixed(2)}%`}</strong></div>
               </article>
             ))}
           </div>
@@ -255,7 +255,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </div>
       </section>
 
-      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.10</span></footer>
+      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.11</span></footer>
     </main>
   );
 }
