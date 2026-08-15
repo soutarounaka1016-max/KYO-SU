@@ -8,3 +8,6 @@ export const examRecordsData = [
 
 // GitHub Actions fills this from Notion before deployment.
 export const questionResultsData = [] as const;
+
+// GitHub Actions fills this from Notion before deployment.
+export const analysisItemsData = [] as const;
