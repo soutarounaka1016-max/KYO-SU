@@ -535,7 +535,7 @@ export default function Home() {
                     <td>{formatPracticeDate(record.practicedAt)}</td>
                     <td><strong>{record.score}</strong> / {record.maxScore}</td>
                     <td>{record.nationalAverage === undefined ? "未確認" : record.nationalAverage.toFixed(2)}</td>
-                    <td><span className={`evaluation ${record.evaluation === "良好" ? "good" : "needs-work"}`}>{record.evaluation}</span></td>
+                    <td><span className={`evaluation ${record.evaluation === "非常に良好" || record.evaluation === "良好" ? "good" : "needs-work"}`}>{record.evaluation ?? "未確認"}</span></td>
                   </tr>
                 ))}
               </tbody>
