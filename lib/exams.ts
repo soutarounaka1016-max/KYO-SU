@@ -39,7 +39,7 @@ export type QuestionResult = {
   code: string;
   points: number;
   result: "正解" | "不正解";
-  nationalCorrectRate: number;
+  nationalCorrectRate?: number;
   field: string;
   topic: string;
   content: string;
