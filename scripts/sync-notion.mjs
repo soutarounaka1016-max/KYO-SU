@@ -53,6 +53,7 @@ function valueOf(property) {
     case "select": return property.select?.name;
     case "status": return property.status?.name;
     case "date": return property.date?.start;
+    case "relation": return property.relation?.map((item) => item.id) ?? [];
     default: return undefined;
   }
 }
@@ -126,8 +127,10 @@ export function normalizePage(page) {
   if (sectionMaxTotal !== maxScore) {
     throw new Error(`${name}: 大問別満点の合計${sectionMaxTotal}点と満点${maxScore}点が一致しません。`);
   }
-  const evaluationSource = valueOf(p["総合評価"]);
-  const evaluation = ["良好", "非常に良好"].includes(evaluationSource) ? "良好" : "要改善";
+  const evaluation = valueOf(p["総合評価"]);
+  if (evaluation !== undefined && !["非常に良好", "良好", "標準", "要改善", "重点改善"].includes(evaluation)) {
+    throw new Error(`${name}: 総合評価が5段階の選択肢に一致しません。`);
+  }
   const nationalAverage = valueOf(p["全国平均点"]);
   if (nationalAverage !== undefined && (!Number.isFinite(Number(nationalAverage)) || Number(nationalAverage) < 0 || Number(nationalAverage) > maxScore)) {
     throw new Error(`${name}: 全国平均点が有効範囲外です。`);
@@ -144,7 +147,7 @@ export function normalizePage(page) {
     score,
     maxScore,
     ...(nationalAverage === undefined ? {} : { nationalAverage: Number(nationalAverage) }),
-    evaluation,
+    ...(evaluation === undefined ? {} : { evaluation }),
     primaryWeakness: required(valueOf(p["最重要弱点"]), "最重要弱点", name),
     summary: required(valueOf(p["AI分析要約"]), "AI分析要約", name),
     sections,
@@ -214,6 +217,51 @@ export function normalizeQuestionPage(page) {
   };
 }
 
+export function normalizeAnalysisPage(page, recordIdByPageId) {
+  const p = page.properties;
+  const name = required(valueOf(p["分析項目名"]), "分析項目名", page.id);
+  const relationIds = required(valueOf(p["演習記録"]), "演習記録", name);
+  const publishedRelations = relationIds.filter((id) => recordIdByPageId.has(id));
+  if (publishedRelations.length !== 1) {
+    throw new Error(`${name}: 公開対象の演習記録Relationは1件だけ必要です。`);
+  }
+  const kind = required(valueOf(p["種別"]), "種別", name);
+  const order = Number(required(valueOf(p["表示順"]), "表示順", name));
+  const title = required(valueOf(p["タイトル"]), "タイトル", name);
+  if (!["見出し", "失点帯", "指標", "観察", "優先失点", "強み", "弱点", "注記"].includes(kind)) {
+    throw new Error(`${name}: 種別が未対応です。`);
+  }
+  if (!Number.isFinite(order) || order < 0) {
+    throw new Error(`${name}: 表示順は0以上の数値にしてください。`);
+  }
+  const correctRateValue = valueOf(p["全国正答率"]);
+  const correctRate = correctRateValue === undefined ? undefined : Number(correctRateValue);
+  if (correctRate !== undefined && (!Number.isFinite(correctRate) || correctRate < 0 || correctRate > 100)) {
+    throw new Error(`${name}: 全国正答率は0〜100で入力してください。`);
+  }
+  const pointsValue = valueOf(p["配点"]);
+  const points = pointsValue === undefined ? undefined : Number(pointsValue);
+  if (points !== undefined && (!Number.isFinite(points) || points < 0)) {
+    throw new Error(`${name}: 配点は0以上にしてください。`);
+  }
+  return {
+    id: page.id,
+    examId: recordIdByPageId.get(publishedRelations[0]),
+    name,
+    kind,
+    order,
+    ...(valueOf(p["ラベル"]) ? { label: valueOf(p["ラベル"]) } : {}),
+    title,
+    ...(valueOf(p["本文"]) ? { detail: valueOf(p["本文"]) } : {}),
+    ...(valueOf(p["表示値"]) ? { value: valueOf(p["表示値"]) } : {}),
+    ...(valueOf(p["トーン"]) ? { tone: valueOf(p["トーン"]) } : {}),
+    ...(valueOf(p["設問コード"]) ? { code: valueOf(p["設問コード"]) } : {}),
+    ...(correctRate === undefined ? {} : { nationalCorrectRate: correctRate }),
+    ...(points === undefined ? {} : { points }),
+    ...(valueOf(p["優先度"]) ? { priority: valueOf(p["優先度"]) } : {}),
+  };
+}
+
 async function queryAllPages(dataSourceId) {
   const pages = [];
   let startCursor;
@@ -246,23 +294,47 @@ async function questionDataSourceId(examDataSourceId) {
   );
 }
 
+async function analysisDataSourceId(examDataSourceId) {
+  const examDataSource = await notionRequest(`/data_sources/${examDataSourceId}`);
+  const relation = examDataSource.properties?.["分析項目"]?.relation;
+  const relatedId = relation?.data_source_id ?? relation?.database_id;
+  if (relatedId) return relatedId;
+
+  const configuredUrl = optionalEnv("NOTION_ANALYSIS_DATABASE_URL");
+  if (configuredUrl) {
+    const database = await notionRequest(`/databases/${databaseIdFromUrl(configuredUrl)}`);
+    const configuredId = database.data_sources?.[0]?.id;
+    if (configuredId) return configuredId;
+  }
+
+  throw new Error(
+    "分析項目Relationから分析項目データソースを検出できません。KYO-SU連携へ分析項目のアクセス権を付与するか、NOTION_ANALYSIS_DATABASE_URLを設定してください。",
+  );
+}
+
 async function loadPages() {
   const databaseId = databaseIdFromUrl(requireEnv("NOTION_DATABASE_URL"));
   const database = await notionRequest(`/databases/${databaseId}`);
   const dataSourceId = database.data_sources?.[0]?.id;
   if (!dataSourceId) throw new Error("No data source was found in the configured Notion database.");
 
-  const relatedDataSourceId = await questionDataSourceId(dataSourceId);
-  const [examPages, questionPages] = await Promise.all([
+  const [relatedDataSourceId, analysisSourceId] = await Promise.all([
+    questionDataSourceId(dataSourceId),
+    analysisDataSourceId(dataSourceId),
+  ]);
+  const [examPages, questionPages, analysisPages] = await Promise.all([
     queryAllPages(dataSourceId),
     queryAllPages(relatedDataSourceId),
+    queryAllPages(analysisSourceId),
   ]);
-  return { examPages, questionPages };
+  return { examPages, questionPages, analysisPages };
 }
 
 async function main() {
-  const { examPages, questionPages } = await loadPages();
-  const records = examPages.map(normalizePage).sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
+  const { examPages, questionPages, analysisPages } = await loadPages();
+  const publishedPages = examPages.filter((page) => valueOf(page.properties?.["公開状態"]) === "公開可");
+  const normalizedRecords = publishedPages.map((page) => ({ pageId: page.id, record: normalizePage(page) }));
+  const records = normalizedRecords.map(({ record }) => record).sort((a, b) => a.practicedAt.localeCompare(b.practicedAt));
   if (records.length === 0) throw new Error("No exam records were found. Deployment stopped.");
   if (new Set(records.map((record) => record.id)).size !== records.length) {
     throw new Error("Duplicate exam IDs were generated. Check 年度・試験区分・科目. Deployment stopped.");
@@ -278,10 +350,11 @@ async function main() {
     }
   }
 
+  const recordsById = new Map(records.map((record) => [record.id, record]));
   const questions = questionPages
     .map(normalizeQuestionPage)
+    .filter((question) => recordsById.has(question.examId))
     .sort((a, b) => a.examId.localeCompare(b.examId) || a.section - b.section || a.code.localeCompare(b.code, "ja"));
-  const recordsById = new Map(records.map((record) => [record.id, record]));
   for (const question of questions) {
     const record = recordsById.get(question.examId);
     if (!record) {
@@ -295,10 +368,31 @@ async function main() {
     throw new Error("Duplicate question IDs were found. Deployment stopped.");
   }
 
-  const source = `// Generated from Notion by scripts/sync-notion.mjs. Do not edit directly.\nexport const examRecordsData = ${JSON.stringify(records, null, 2)} as const;\n\nexport const questionResultsData = ${JSON.stringify(questions, null, 2)} as const;\n`;
+  const recordIdByPageId = new Map(normalizedRecords.map(({ pageId, record }) => [pageId, record.id]));
+  const analysisItems = analysisPages
+    .filter((page) => (valueOf(page.properties?.["演習記録"]) ?? []).some((id) => recordIdByPageId.has(id)))
+    .map((page) => normalizeAnalysisPage(page, recordIdByPageId))
+    .sort((a, b) => a.examId.localeCompare(b.examId) || a.order - b.order);
+  if (new Set(analysisItems.map((item) => item.id)).size !== analysisItems.length) {
+    throw new Error("Duplicate analysis item IDs were found. Deployment stopped.");
+  }
+  for (const record of records) {
+    const items = analysisItems.filter((item) => item.examId === record.id);
+    if (items.filter((item) => item.kind === "見出し").length !== 1) {
+      throw new Error(`${record.name}: 見出しは1件だけ必要です。`);
+    }
+    if (items.filter((item) => item.kind === "強み").length < 1) {
+      throw new Error(`${record.name}: 強みが1件以上必要です。`);
+    }
+    if (items.filter((item) => item.kind === "弱点").length < 1) {
+      throw new Error(`${record.name}: 弱点が1件以上必要です。`);
+    }
+  }
+
+  const source = `// Generated from Notion by scripts/sync-notion.mjs. Do not edit directly.\nexport const examRecordsData = ${JSON.stringify(records, null, 2)} as const;\n\nexport const questionResultsData = ${JSON.stringify(questions, null, 2)} as const;\n\nexport const analysisItemsData = ${JSON.stringify(analysisItems, null, 2)} as const;\n`;
   await mkdir(dirname(OUTPUT_PATH), { recursive: true });
   await writeFile(OUTPUT_PATH, source, "utf8");
-  console.log(`Synced and validated ${records.length} exam records and ${questions.length} question results from Notion.`);
+  console.log(`Synced and validated ${records.length} exam records, ${questions.length} question results, and ${analysisItems.length} analysis items from Notion.`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
