@@ -162,7 +162,10 @@ export function normalizeQuestionPage(page) {
   const code = required(valueOf(p["設問コード"]), "設問コード", name);
   const points = Number(required(valueOf(p["配点"]), "配点", name));
   const result = required(valueOf(p["自分の結果"]), "自分の結果", name);
-  const nationalCorrectRate = Number(required(valueOf(p["全国正答率"]), "全国正答率", name));
+  const nationalCorrectRateValue = valueOf(p["全国正答率"]);
+  const nationalCorrectRate = nationalCorrectRateValue === undefined
+    ? undefined
+    : Number(nationalCorrectRateValue);
   const field = required(valueOf(p["分野"]), "分野", name);
 
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
@@ -186,7 +189,7 @@ export function normalizeQuestionPage(page) {
   if (!["正解", "不正解"].includes(result)) {
     throw new Error(`${name}: 自分の結果 must be 正解 or 不正解.`);
   }
-  if (!Number.isFinite(nationalCorrectRate) || nationalCorrectRate < 0 || nationalCorrectRate > 100) {
+  if (nationalCorrectRate !== undefined && (!Number.isFinite(nationalCorrectRate) || nationalCorrectRate < 0 || nationalCorrectRate > 100)) {
     throw new Error(`${name}: 全国正答率 must be between 0 and 100.`);
   }
 
@@ -202,7 +205,7 @@ export function normalizeQuestionPage(page) {
     code,
     points,
     result,
-    nationalCorrectRate,
+    ...(nationalCorrectRate === undefined ? {} : { nationalCorrectRate }),
     field,
     topic: valueOf(p["テーマ"]) ?? "",
     content: valueOf(p["問題内容"]) ?? "",
