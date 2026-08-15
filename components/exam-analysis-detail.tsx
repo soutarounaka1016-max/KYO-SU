@@ -13,13 +13,17 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
   const record = examRecords.find((item) => item.id === analysis.recordId)!;
   const questions = questionResultsByRecord(record.id);
   const correctQuestions = questions.filter((question) => question.result === "正解");
+  const ratedQuestions = questions.filter(
+    (question): question is typeof question & { nationalCorrectRate: number } =>
+      question.nationalCorrectRate !== undefined,
+  );
   const missedQuestions = questions
     .filter((question) => question.result === "不正解")
-    .sort((a, b) => b.nationalCorrectRate - a.nationalCorrectRate);
+    .sort((a, b) => (b.nationalCorrectRate ?? -1) - (a.nationalCorrectRate ?? -1));
   const questionPoints = questions.reduce((sum, question) => sum + question.points, 0);
   const earnedQuestionPoints = correctQuestions.reduce((sum, question) => sum + question.points, 0);
-  const averageNationalRate = questions.length > 0
-    ? questions.reduce((sum, question) => sum + question.nationalCorrectRate, 0) / questions.length
+  const averageNationalRate = ratedQuestions.length > 0
+    ? ratedQuestions.reduce((sum, question) => sum + question.nationalCorrectRate, 0) / ratedQuestions.length
     : undefined;
   const fields = Array.from(new Set(questions.map((question) => question.field)))
     .map((field) => {
@@ -176,7 +180,11 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
               <article><span>設問数</span><strong>{questions.length}</strong><small>件</small></article>
               <article><span>正解／不正解</span><strong>{correctQuestions.length}<small> / {missedQuestions.length}</small></strong><small>件</small></article>
               <article><span>設問別回収点</span><strong>{earnedQuestionPoints}<small> / {questionPoints}</small></strong><small>点</small></article>
-              <article><span>全国正答率の平均</span><strong>{averageNationalRate?.toFixed(1)}</strong><small>%</small></article>
+              <article>
+                <span>全国正答率の平均</span>
+                <strong>{averageNationalRate === undefined ? "未確認" : averageNationalRate.toFixed(1)}</strong>
+                {averageNationalRate !== undefined && <small>%</small>}
+              </article>
             </div>
 
             <div className={styles.blockHeading}>
@@ -194,8 +202,8 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
             </div>
 
             <div className={styles.blockHeading}>
-              <div><span>PRIORITY MISSES</span><h3>全国正答率が高い取りこぼし</h3></div>
-              <p>上位8件</p>
+              <div><span>PRIORITY MISSES</span><h3>優先して確認する不正解</h3></div>
+              <p>全国正答率ありを優先・上位8件</p>
             </div>
             {missedQuestions.length === 0 ? (
               <div className={styles.emptySuccess}>登録された設問はすべて正解です。</div>
@@ -205,7 +213,10 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
                   <article key={question.id}>
                     <span className={styles.priority}>{question.priority}</span>
                     <div><strong>第{question.section}問 {question.code}</strong><p>{question.field}{question.topic ? ` · ${question.topic}` : ""}</p></div>
-                    <div><span>全国正答率</span><strong>{question.nationalCorrectRate.toFixed(2)}%</strong></div>
+                    <div>
+                      <span>全国正答率</span>
+                      <strong>{question.nationalCorrectRate === undefined ? "未確認" : `${question.nationalCorrectRate.toFixed(2)}%`}</strong>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -219,7 +230,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
                     <div className={styles.questionTop}>
                       <span>{question.result}</span>
                       <strong>第{question.section}問 {question.code}</strong>
-                      <small>{question.points}点 · 全国正答率 {question.nationalCorrectRate.toFixed(2)}%</small>
+                      <small>{question.points}点 · 全国正答率 {question.nationalCorrectRate === undefined ? "未確認" : `${question.nationalCorrectRate.toFixed(2)}%`}</small>
                     </div>
                     <div className={styles.questionMeta}>
                       <span>{question.field}</span>
@@ -244,7 +255,7 @@ export function ExamAnalysisDetail({ analysis }: { analysis: ExamAnalysis }) {
         </div>
       </section>
 
-      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.9</span></footer>
+      <footer className="detail-footer"><Link href="/">← {examRecords.length}試験の一覧に戻る</Link><span>KYO-SU v0.10</span></footer>
     </main>
   );
 }
